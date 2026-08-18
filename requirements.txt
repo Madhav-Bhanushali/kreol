@@ -1,0 +1,19 @@
+# Core
+torch>=2.4
+torchaudio>=2.4
+transformers>=4.33
+accelerate
+datasets
+cached-path
+soundfile
+librosa
+numpy
+jiwer
+tensorboard
+
+# Optional: drama audio music/SFX removal
+demucs
+
+# Install these from source (see README):
+#   f5-tts                    -> git clone https://github.com/SWivid/F5-TTS.git && pip install -e .
+#   ctc-forced-aligner        -> pip install git+https://github.com/MahmoudAshraf97/ctc-forced-aligner.git

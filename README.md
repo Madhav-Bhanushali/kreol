@@ -1,0 +1,67 @@
+# Kreol — Mauritian Creole (Morisyen) TTS fine-tune pipeline
+
+Fine-tunes **F5-TTS** on Mauritian Creole (`mfe`) using the NTKM2009 Bible audio
+(see `morisyen-tts-project-status.md` for full project status, rationale, and license notes).
+
+**⚠️ Licensing / status before you invest time:**
+- F5-TTS's pretrained checkpoint is **CC-BY-NC** — any fine-tune inherits non-commercial status.
+- The Bible text (© Bible Society of Mauritius, 2009) is **not** public domain. Confirm usage
+  rights (DBL entry https://app.thedigitalbiblelibrary.org/entry?id=616296e8e170ebc1) before
+  building on it. This pipeline is currently a **research/feasibility build**.
+- The downloaded audio is the FCBH **Drama** recording (multi-speaker + background music), not a
+  single narrator. This is the only FCBH audio for this translation; Meta's MMS used the same
+  recording family for `mms-tts-mfe` after removing music and hard quality filtering.
+
+## Hardware target
+
+A single **NVIDIA RTX 6000 Ada (48 GB)** GPU. bf16 mixed precision, one process.
+
+## Setup
+
+```bash
+# 1. F5-TTS (editable install required for training)
+git clone https://github.com/SWivid/F5-TTS.git
+cd F5-TTS && pip install -e .
+conda install ffmpeg   # or install ffmpeg some other way; required
+
+# 2. This pipeline's deps
+pip install -r requirements.txt
+
+# 3. Forced-aligner
+pip install git+https://github.com/MahmoudAshraf97/ctc-forced-aligner.git
+```
+
+## Pipeline
+
+Run order (steps 2 and 3 are only needed because the audio is a drama recording):
+
+| Step | Command | Notes |
+|---|---|---|
+| 1. Audio → WAV | `python scripts/01_convert_audio.py "MFEBSMN2DA/Mauritian Kreol_mfe_BSM_NT_Drama"` | MP3 → 24 kHz mono WAV |
+| 2. Music/SFX removal | `python scripts/02_remove_music.py data/chapters_24k` | optional, but recommended; needs `demucs` |
+| 3. Forced alignment | `python scripts/03_align.py data/verses.json data/chapters_clean` | uses `facebook/mms-fa` via `ctc-forced-aligner` |
+| 4. Filter | `python scripts/04_filter_alignments.py data/alignments` | drops low-confidence / implausible segments |
+| 5. Dataset | `python scripts/05_build_dataset.py data/alignments_filtered data/chapters_clean` | writes `metadata.csv` + `metadata_val.csv` |
+| 6. F5-TTS prepare | `python scripts/06_prepare_f5tts_data.py --f5tts_dir ../F5-TTS` | builds `raw.arrow`, `duration.json`, `vocab.txt` |
+| 7. Fine-tune | `bash scripts/07_finetune.sh` (set `F5TTS_DIR`) | ~1e-5 LR, see script |
+| 8. Evaluate | `python scripts/08_evaluate.py --f5tts_dir ../F5-TTS --ckpt_dir ckpts/MFEBSM/F5TTS_v1_Base --ref_wav ... --ref_text "..."` | CER/WER via `mms-1b-all` |
+
+## Data formats
+
+- `data/verses.json` — required input for alignment:
+  ```json
+  { "<wav-stem-without-.wav>": { "1": "verse text", "2": "..." } }
+  ```
+  (see `data/verses.example.json`). Text is not yet obtained — see the project status doc for
+  sourcing (DBL / YouVersion / Bible Society of Mauritius) and the licensing checks required first.
+- Alignment output: `data/alignments/<stem>.json` → per verse `{start, end, score, text}`.
+- F5-TTS dataset: `metadata.csv` with header `audio_file|text`, `|` delimiter, absolute wav paths.
+
+## Notes / gotchas
+
+- The `pinyin` tokenizer is correct for `F5TTS_v1_Base` fine-tuning (matches the pretrained vocab);
+  `prepare_csv_wavs.py` copies the pretrained `vocab.txt` in fine-tune mode. Normalize text to
+  **lowercase** and verify every Morisyen character exists in the resulting `vocab.txt` — any char
+  outside it maps to the unknown index and silently degrades training.
+- Early-stage fine-tune checkpoints: load with `use_ema=False` when inferring (see `08_evaluate.py`).
+- Alignment on drama audio yields more failures — raise the `--min_score` threshold if needed.
