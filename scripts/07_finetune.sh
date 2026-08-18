@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Fine-tune F5-TTS v1 Base on Mauritian Creole.
-# Tuned for a single NVIDIA RTX 6000 Ada (48 GB) with bf16.
+# Tuned for a single NVIDIA RTX PRO 6000 Blackwell (96 GB, sm_120) with bf16.
 # Run from anywhere; F5TTS_DIR must point at your F5-TTS checkout (editable install).
 
 F5TTS_DIR="${F5TTS_DIR:-$(realpath ../F5-TTS)}"
@@ -20,7 +20,7 @@ accelerate launch \
   --tokenizer "$TOKENIZER" \
   --finetune \
   --learning_rate 1e-5 \
-  --batch_size_per_gpu 6400 \
+  --batch_size_per_gpu 12800 \
   --batch_size_type frame \
   --max_samples 64 \
   --grad_accumulation_steps 1 \

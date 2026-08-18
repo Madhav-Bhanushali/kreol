@@ -1,6 +1,6 @@
-# Core
-torch>=2.4
-torchaudio>=2.4
+# Core (Blackwell sm_120: use torch 2.8.0+cu128 / torchaudio 2.8.0+cu128)
+torch>=2.8
+torchaudio>=2.8
 transformers>=4.33
 accelerate
 datasets

@@ -14,7 +14,8 @@ Fine-tunes **F5-TTS** on Mauritian Creole (`mfe`) using the NTKM2009 Bible audio
 
 ## Hardware target
 
-A single **NVIDIA RTX 6000 Ada (48 GB)** GPU. bf16 mixed precision, one process.
+A single **NVIDIA RTX PRO 6000 Blackwell (96 GB)** GPU (sm_120). bf16 mixed precision, one process.
+Blackwell needs CUDA 12.8+ — install `torch==2.8.0+cu128 torchaudio==2.8.0+cu128` (see F5-TTS README).
 
 ## Setup
 

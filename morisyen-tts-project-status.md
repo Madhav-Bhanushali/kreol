@@ -4,7 +4,7 @@
 Fine-tune F5-TTS on Mauritian Creole (`mfe`) using Bible audio as the training source, following the same data-sourcing approach Meta used to build `facebook/mms-tts-mfe`.
 
 ## 🗂️ Pipeline code
-All pipeline scripts referenced below live in `scripts/` in this repo (see `README.md` for the end-to-end run order and `data/verses.example.json` for the alignment input format). Hardware target: a single **NVIDIA RTX 6000 Ada (48 GB)**.
+All pipeline scripts referenced below live in `scripts/` in this repo (see `README.md` for the end-to-end run order and `data/verses.example.json` for the alignment input format). Hardware target: a single **NVIDIA RTX PRO 6000 Blackwell (96 GB)**.
 
 ---
 
