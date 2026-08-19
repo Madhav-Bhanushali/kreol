@@ -63,7 +63,8 @@ def main():
     ap = argparse.ArgumentParser(description="Gemma voice pipeline (ASR -> reason -> TTS)")
     ap.add_argument("--audio", required=True, help="input audio (wav/mp3)")
     ap.add_argument("--out", required=True, help="output wav path")
-    ap.add_argument("--asr", choices=["gemma", "mms"], default="gemma")
+    ap.add_argument("--asr", choices=["gemma", "mms"], default="mms",
+                    help="ASR leg: 'mms' (mms-1b-all, decided fallback — Gemma ASR underperformed on Morisyen) or 'gemma'")
     ap.add_argument("--system", default=None)
     ap.add_argument("--lang", default="mfe")
     ap.add_argument("--max-seconds", type=float, default=28.0)

@@ -47,13 +47,20 @@ Naive fixed-length chunking (slicing every 30s) risks cutting mid-word or mid-se
 - For multi-turn conversation audio, chunk per speaker turn where possible — sets up cleanly for feeding Gemma one turn at a time in the reasoning step.
 
 ### To do
-- [ ] Test Gemma's ASR on sample Morisyen audio clips — confirm whether it can transcribe at all before relying on it.
-- [ ] If Gemma's Morisyen ASR is weak/absent: wire `mms-1b-all` as the ASR leg instead, feeding its transcript into Gemma for the reasoning/response-generation step.
-- [ ] Decide the response-generation language: Gemma generates replies directly in Kreol Morisien text, or generates in a well-resourced language and translates — depends on how strong Gemma's Morisyen generation turns out to be.
-- [ ] Wire up `facebook/mms-tts-mfe` as the placeholder output voice (see dependency note).
-- [ ] Build the glue code: audio in → (Gemma or MMS ASR) → transcript → Gemma reasoning → response text → TTS → audio out.
-- [ ] Implement silence/VAD-based audio chunking for inputs over 30s.
-- [ ] End-to-end latency check once both legs are wired.
+- [x] Test Gemma's ASR on sample Morisyen audio clips — confirm whether it can transcribe at all before relying on it.
+- [x] If Gemma's Morisyen ASR is weak/absent: wire `mms-1b-all` as the ASR leg instead, feeding its transcript into Gemma for the reasoning/response-generation step.
+- [x] Decide the response-generation language: Gemma generates replies directly in Kreol Morisien text, or generates in a well-resourced language and translates — depends on how strong Gemma's Morisyen generation turns out to be.
+- [x] Wire up `facebook/mms-tts-mfe` as the placeholder output voice (see dependency note).
+- [x] Build the glue code: audio in → (Gemma or MMS ASR) → transcript → Gemma reasoning → response text → TTS → audio out.
+- [x] Implement silence/VAD-based audio chunking for inputs over 30s.
+- [x] End-to-end latency check once both legs are wired.
+
+### Status notes (append-only)
+- **Gemma ASR tested on real Morisyen (B01 Matthew 1, 25s + 75s clips from the drama audio).** Verdict: it CAN transcribe Morisyen, but with heavy errors and unstable orthography — it mixes French spellings into the output ("ci papa" / "c'est papa", "s'appelle", "Son maman") and garbles names. On the same 25s clip, `facebook/mms-1b-all` was near-perfect ("abraam ti papa izaak izaak ti papa zakob zakob ti papa zida ek so bann frer zida ti papa perez ek zera zot mama ti apel tamar perez ti papa esron"; 1 minor error) vs Gemma's error-dense French-mixed version. → **ASR leg = `mms-1b-all`; Gemma handles reasoning only** (as the doc's fallback prescribes). Pipeline defaults to `--asr mms`.
+- **Gemma's Morisyen generation is strong** — given the MMS transcript, it replied in fluent Kreol Morisien ("Sa se sa bann non bann papa ek zot gran-papa ki nou konn? Ki sa ou anvi konn plis sou zot?"). → **Decided: Gemma generates replies directly in Kreol Morisien** (no translate-then-back step).
+- **`.env` correction:** the pasted `GEMMA_AUDIO_BASE_URL=http://45.194.3.34:8101/v1` is dead (unreachable from both this machine and the box). The live audio endpoint is `http://43.242.226.49:8101/v1` (same host as the text endpoint; auth `GEMMA_AUDIO_API_KEY=gemma4-secret`, verified HTTP 200 on `/v1/models`). `.env` on both machines updated.
+- **Chunking verified on real audio:** 75s Matthew 1 clip → 4 silence/VAD chunks (max 27.9s), each transcribed correctly. Synthetic test confirmed the >28s single-utterance hard-split at the nearest low-energy point.
+- **End-to-end pipeline works on the box** (`scripts/gemma_pipeline.py --asr mms`): 25s input → ASR 9.5s + reason 0.2s + TTS 10.0s (both model loads included on first run; warm runs faster) = 19.7s total → 7.34s reply wav. ASR/TTS model weights cache on the box so repeat runs drop well below this.
 
 ---
 
