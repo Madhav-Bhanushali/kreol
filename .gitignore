@@ -1,5 +1,4 @@
 # raw audio + data artifacts (large / licensed)
-MFEBSMN2DA/
 data/*
 !data/verses.example.json
 ckpts/

@@ -15,6 +15,12 @@ All pipeline scripts referenced below live in `scripts/` in this repo (see `READ
 3. **License checked** — F5-TTS's code is MIT, but the **pretrained checkpoint is CC-BY-NC** (inherited from the Emilia training set). Any checkpoint fine-tuned from it stays non-commercial. ⚠️ This blocks production/commercial use as-is — treat this phase as a research/feasibility build, not a shippable model, until this is resolved separately.
 4. **Audio sourced ✅ (verified)** — downloaded the FCBH/Bible.is NT audio for this exact translation: 260 chapter MP3s in `MFEBSMN2DA/Mauritian Kreol_mfe_BSM_NT_Drama/`, named `B##___##_Book____MFEBSMN2DA.mp3` (B01 = Matthieu … B27 = Apocalypse) = the complete 27-book / 260-chapter NT — exactly matching the NT structure MMS-lab was built on. ⚠️ This is the **Drama** recording, not a single-narrator reading — see the Critical Finding below.
 5. **Alignment/tooling plan set** — decided to use `facebook/mms-fa` (Meta's forced-alignment model, same language coverage as MMS-TTS) to align long-form chapter audio against verse-level text.
+6. **Pipeline code + repo ✅** — the full pipeline (`scripts/01_convert_audio.py` → `08_evaluate.py`: MP3→24k WAV, optional music removal, `mms-fa` alignment, confidence filtering, dataset build, F5-TTS preprocess, finetune, CER/WER eval) is written and pushed to **https://github.com/Madhav-Bhanushali/kreol**. Finetune config is sized for the actual GPU (see Environment section).
+
+## 🚧 Environment (GPU machine: `/root/bonsai`, conda env `f5tts`)
+- GPU confirmed: **NVIDIA RTX PRO 6000 Blackwell (96 GB, sm_120)** → needs CUDA 12.8 wheels (`torch==2.8.0+cu128 torchaudio==2.8.0+cu128`).
+- Setup in progress on the Linux box: ffmpeg, cu128 torch, `ctc-forced-aligner` installed. `f5-tts` currently present as the **PyPI wheel (1.1.22) — inference only**; it must be reinstalled editable from the git clone for training (`git clone https://github.com/SWivid/F5-TTS.git && cd F5-TTS && pip install -e .`).
+- The 260 MP3s still live on the local Windows machine — transfer to the GPU box (`scp -r MFEBSMN2DA root@<host>:~/kreol/`) before running `01_convert_audio.py`.
 
 ## ⚠️ Critical finding: the downloaded audio is the Drama recording
 
@@ -34,7 +40,7 @@ This does **not** change the overall plan — alignment, filtering, and training
 3. **Filter bad alignments** — drop low-confidence/mismatched segments (cross-validation filtering step, same as MMS's own pipeline).
 4. **Build F5-TTS dataset** — `wavs/` folder + `metadata.csv` (`audio_file|text` format), resampled to 24kHz mono.
 5. **Preprocess** — `python src/f5_tts/train/datasets/prepare_csv_wavs.py metadata.csv data/MFEBSM_pinyin` → generates `raw.arrow`, `duration.json`, `vocab.txt` (current F5-TTS path; old root-level `prepare_csv_wavs.py` no longer exists). ⚠️ In finetune mode this **copies the pretrained Emilia pinyin vocab** into `vocab.txt` — so manually verify every Morisyen character used (apostrophes, dashes, any accented vowels) exists in it; any char missing maps to the unknown token (idx 0) and silently degrades training. Normalize text to **lowercase** to match the pretrained vocab.
-6. **Fine-tune** — `accelerate launch src/f5_tts/train/finetune_cli.py --exp_name F5TTS_v1_Base --dataset_name MFEBSM --tokenizer pinyin --finetune --learning_rate 1e-5 ...` (current API uses `--dataset_name`, not the old `--train_file`/`--train_file_input_dir`; **`pinyin`** tokenizer matches the pretrained checkpoint — `char` would reset the text embedding). Sized for a single RTX 6000 Ada (48 GB): see `scripts/07_finetune.sh`. Expect this to take real iteration — don't expect a working model from one run.
+6. **Fine-tune** — `accelerate launch src/f5_tts/train/finetune_cli.py --exp_name F5TTS_v1_Base --dataset_name MFEBSM --tokenizer pinyin --finetune --learning_rate 1e-5 ...` (current API uses `--dataset_name`, not the old `--train_file`/`--train_file_input_dir`; **`pinyin`** tokenizer matches the pretrained checkpoint — `char` would reset the text embedding). Sized for the **RTX PRO 6000 Blackwell (96 GB)** with bf16: see `scripts/07_finetune.sh`. Expect this to take real iteration — don't expect a working model from one run.
 7. **Evaluate** — generate test sentences, transcribe output with `facebook/mms-1b-all` (MMS's ASR checkpoint, also covers `mfe`), compute word/character error rate against input text.
 8. **Resolve the license question** — decide whether this stays a research artifact, or whether a commercially-clean path (different base model, or from-scratch training on rights-cleared data) is needed before any production use.
 
@@ -58,12 +64,14 @@ The text is **© 2009 Bible Society of Mauritius**, not public domain and not ob
 ### Practical extraction approach
 Once license terms are confirmed, the actual pull is straightforward since the text is verse-tagged: fetch each book/chapter, split into verses, and store as `book_chapter_verse → text` — this verse-level structure is exactly the segmentation granularity you want for aligning against the chaptered audio (see "To do," step 2).
 
-```python
-# illustrative structure only — actual fetch depends on which source above you're granted access through
-verses = {
-    "MAT.1.1": "Lalis zanset Zezi-Kri, fis David, fis Abraam...",
-    "MAT.1.2": "Abraam ti papa Izaak...",
-    # ...
+```json
+// actual format expected by scripts/03_align.py (data/verses.json):
+// key = wav stem of the chapter audio, values = { verse_number: text }
+{
+  "B01___01_Matthieu____MFEBSMN2DA": {
+    "1": "Lalis zanset Zezi-Kri, fis David, fis Abraam...",
+    "2": "Abraam ti papa Izaak..."
+  }
 }
 ```
 
