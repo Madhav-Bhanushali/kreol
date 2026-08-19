@@ -11,7 +11,7 @@ import requests
 from gemma_env import GEMMA_MODEL, GEMMA_TEXT_API_KEY, GEMMA_TEXT_BASE_URL, GEMMA_TIMEOUT
 
 
-def generate(system, user, api_key=None, base_url=None, model=None, max_tokens=512,
+def generate(system, user, api_key=None, base_url=None, model=None, max_tokens=256,
              temperature=0.7, timeout=None, retries=1):
     api_key = api_key or GEMMA_TEXT_API_KEY
     base_url = base_url or GEMMA_TEXT_BASE_URL
