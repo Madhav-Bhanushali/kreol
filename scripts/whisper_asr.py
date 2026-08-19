@@ -38,8 +38,9 @@ def transcribe(audio_path, model_size="small", device=None, compute_type=None):
     per = []
     parts = []
     for s in segments:
+        seg_lang = getattr(s, "language", None) or info.language
         per.append({"start": round(s.start, 2), "end": round(s.end, 2),
-                    "lang": s.language, "text": s.text.strip()})
+                    "lang": seg_lang, "text": s.text.strip()})
         parts.append(s.text.strip())
     langs = sorted({p["lang"] for p in per})
     return " ".join(parts).strip(), langs, per, info.language
