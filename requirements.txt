@@ -10,6 +10,8 @@ librosa
 numpy
 jiwer
 tensorboard
+requests
+soundfile
 
 # Optional: drama audio music/SFX removal
 demucs
