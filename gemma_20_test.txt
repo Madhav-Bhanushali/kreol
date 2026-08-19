@@ -1,0 +1,84 @@
+Gemma 20-call reply test — 2026-08-19 16:07:39
+model=google/gemma-4-E4B-it  timeout=60.0s
+system prompt: You are a friendly voice assistant for a Mauritian Creole (Kreol Morisien) speaker. The user may speak to you in ANY language (e.g. English, French, Hindi, Chinese, Spanish). ALWAYS answer in fluent, natural Kreol Morisien only, no matter what language the user spoke in. Keep replies short and conversational. If you did not understand, ask a short clarifying question in Kreol Morisien.
+==============================================================================
+
+[01] ok (0.5s)  language=fr
+  INPUT : Bonjour, est-ce que tu peux me dire comment cuisiner le riz créole ?
+  OUTPUT: Ou-zanm, mo kapav! Pou riz créole, ou bez koumanse avek nou riz, ajoute nou bouillon, nou epes, epi laisse fri pou li kozin. Ou bez plis detay?
+
+[02] ok (0.3s)  language=en
+  INPUT : Hello, can you tell me about Mauritius?
+  OUTPUT: Alo! Maurice la enn îla bel bann paysage, avek plizier kiltir diferan. To veut plis detay sou kisa?
+
+[03] ok (0.2s)  language=hi
+  INPUT : नमस्ते, आपका दिन कैसा चल रहा है?
+  OUTPUT: Bonjour! Mon lannye la la bien, merci. Et ou, kouman ou ye?
+
+[04] ok (0.3s)  language=zh
+  INPUT : 你好，请问毛里求斯有什么好吃的？
+  OUTPUT: Alo! Pou komanse, ou prefere manje salé oubyen dous?
+
+[05] ok (0.2s)  language=es
+  INPUT : Hola, ¿qué tal el clima en tu país?
+  OUTPUT: Salut! Zot pa ti kapab dirm sa. Ki zot anvi konnen anba?
+
+[06] ok (0.1s)  language=de
+  INPUT : Hallo, wie geht es dir heute?
+  OUTPUT: Salut! Mo la bien, merci. To komanse?
+
+[07] ok (0.2s)  language=ar
+  INPUT : مرحبا، كيف حالك؟
+  OUTPUT: Bonjou! Mo byen, merci. Ou kouman ou ye?
+
+[08] ok (0.2s)  language=mfe
+  INPUT : Bonzur, ki ou ti pe fer lot zour?
+  OUTPUT: Bonzour! Mo ti pe fer mo travay, ou ki ou ti pe fer?
+
+[09] ok (0.4s)  language=mfe
+  INPUT : Kouma mo kapav resersa en bann resip lor internet?
+  OUTPUT: Ou kapav resersa lor Google, Bing, ou lòt site de recherche. Ou pou met sa ki ou anvi trouve dan la barre de recherche.
+
+[10] ok (0.1s)  language=en
+  INPUT : What is the capital of Mauritius?
+  OUTPUT: Port Louis, sa se lakapital Moris.
+
+[11] ok (0.3s)  language=fr
+  INPUT : Peux-tu me raconter une histoire courte ?
+  OUTPUT: Wi, bien sûr! Kisa ou anvi tande, yon istwa sou zour, oswa yon istwa ki pli kouman?
+
+[12] ok (0.3s)  language=zh
+  INPUT : 你能教我一句毛里求斯克里奥尔语吗？
+  OUTPUT: Wi, bien sûr! Kiwa "Bonjour" an Kreol Morisien?
+
+[13] ok (0.2s)  language=pt
+  INPUT : Olá, como está o tempo hoje?
+  OUTPUT: Bonjou! Le tan kouma tou lezourd?
+
+[14] ok (0.2s)  language=it
+  INPUT : Ciao, come stai?
+  OUTPUT: Mwa byen, merci! Ou kamarad kisa to'nn?
+
+[15] ok (0.2s)  language=ru
+  INPUT : Привет, как дела?
+  OUTPUT: Bonjou! Mwa la bien, merci. Ou kouma?
+
+[16] ok (0.2s)  language=ta
+  INPUT : வணக்கம், எப்படி இருக்கிறீர்கள்?
+  OUTPUT: Bonjou! Mo la, merci. Et ou, comment ou ti?
+
+[17] ok (0.1s)  language=ur
+  INPUT : سلام، آپ کیسے ہیں؟
+  OUTPUT: Bonjour! Mwen byen, mèsi. Ou kouma?
+
+[18] ok (0.3s)  language=mfe
+  INPUT : Ki to panse lor laplenn Moris?
+  OUTPUT: Mwa panse li ena anpil kiltir ak bel lavwa. Ou prefere sa kote?
+
+[19] ok (0.3s)  language=mfe
+  INPUT : Kouma pou al Laport Louis?
+  OUTPUT: Ou pe ti mande kouma pou al Laport Louis? Ou pe dir ou bezwen direksyon, oubyen ou mande pou transport?
+
+[20] ok (0.2s)  language=en
+  INPUT : Can you sing me a song in Kreol?
+  OUTPUT: Bien sûr! Lèz chante yon ti kase. 🎶
