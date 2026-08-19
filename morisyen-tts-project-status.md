@@ -76,7 +76,7 @@ Same fine-tuning toolkit already scoped earlier in this project: **`gokhanerasla
 - [x] Load `disco-eth/WorldSpeech` config `mfe_mu` via `datasets`; inspect actual hour count / row count and `cer`/quality-score distribution.
 - [x] Filter rows by CER threshold (e.g. CER < 0.2–0.3, matching the dataset paper's own quality filtering convention) to drop poorly-aligned segments.
 - [x] Convert filtered rows into LJSpeech-format dataset (`wavs/` + `metadata.csv`) for the fine-tuning toolkit.
-- [ ] Load base Chatterbox V3 checkpoint (`t3_model="v3"`), inspect tokenizer vocab for any missing Morisyen-specific characters.
+- [x] Load base Chatterbox V3 checkpoint (`t3_model="v3"`), inspect tokenizer vocab for any missing Morisyen-specific characters.
 - [ ] Add `mfe` language embedding row, initialized as a copy of the `fr` row (not random).
 - [ ] Configure LoRA (rank-32 starting point, target `q/k/v/o` in T3, freeze S3Gen + speaker encoder + all other language rows).
 - [ ] Run fine-tune via `gokhaneraslan/chatterbox-finetuning`.
@@ -89,6 +89,9 @@ Same fine-tuning toolkit already scoped earlier in this project: **`gokhanerasla
 - **CER filter (md#2):** chose **CER < 0.3** → keeps 9,681 rows / 39.8h (95%); CER < 0.2 would keep 22.5h, CER < 0.25 keeps 32.0h. Re-runnable via `--cer`.
 - **LJSpeech build (md#3):** `scripts/build_ljspeech_dataset.py` → `data/worldspeech_mfe_ljspeech/` (`wavs/` 24 kHz mono PCM-16 + `metadata.csv` as `id|human_transcript|human_transcript`). Workaround: `datasets` 5.0.1 decodes audio via `torchcodec`, whose binary mismatches the box's torch 2.8 (undefined symbol) — the script loads the audio column as raw bytes and decodes with `soundfile` instead. HF token now in `.env` (gitignored) on both machines.
 - **Chatterbox is a new toolchain** — not yet installed anywhere; the box has space now (198G free after the user's cleanup), so model/dataset downloads go to the box.
+- **Token/vocab check (md#4):** the mfe_mu transcripts use only 24 ASCII letters (a–z minus j/q) — **zero accented characters**, a pure ASCII subset. The V3 multilingual grapheme tokenizer (`grapheme_mtl_merged_expanded_v1.json`, **2,454 tokens**) already contains every letter, all French accented chars, and both apostrophe forms → **no vocab extension needed**. No `<mfe>` language token exists yet (that's md#5).
+- **Toolkit note (md#6/7 prep):** `gokhaneraslan/chatterbox-finetuning` Standard mode = Llama-based T3 with the 2,454-token grapheme tokenizer; LoRA adds `lora_r/alpha`, target modules `c_attn/c_proj/c_fc/spkr_enc` (Turbo-style names), saves `text_emb`/`text_head`. Its "new language" path extends the *text* vocab; adding a dedicated `mfe` language-ID row (the md's copy-from-`fr` plan) will likely need a small custom patch on top. PyPI `chatterbox-tts` 0.1.7 is V2-only — V3 (`t3_model="v3"`) requires the GitHub source install (in progress in a dedicated `/root/bonsai/chatterbox_venv`; torch bumped to 2.8.0+cu128 for the Blackwell GPU).
+- **LJSpeech dataset built (md#3):** 9,681 rows / 39.8h / 6.5GB at `/root/bonsai/kreol/data/worldspeech_mfe_ljspeech/` (`wavs/` 24 kHz mono PCM-16, `metadata.csv` `id|human_transcript|human_transcript`, 0 skipped). Verified: 15s clips, mono, 24 kHz.
 
 ---
 
