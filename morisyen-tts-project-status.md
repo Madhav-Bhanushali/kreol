@@ -15,12 +15,13 @@ All pipeline scripts referenced below live in `scripts/` in this repo (see `READ
 3. **License checked** — F5-TTS's code is MIT, but the **pretrained checkpoint is CC-BY-NC** (inherited from the Emilia training set). Any checkpoint fine-tuned from it stays non-commercial. ⚠️ This blocks production/commercial use as-is — treat this phase as a research/feasibility build, not a shippable model, until this is resolved separately.
 4. **Audio sourced ✅ (verified)** — downloaded the FCBH/Bible.is NT audio for this exact translation: 260 chapter MP3s in `MFEBSMN2DA/Mauritian Kreol_mfe_BSM_NT_Drama/`, named `B##___##_Book____MFEBSMN2DA.mp3` (B01 = Matthieu … B27 = Apocalypse) = the complete 27-book / 260-chapter NT — exactly matching the NT structure MMS-lab was built on. ⚠️ This is the **Drama** recording, not a single-narrator reading — see the Critical Finding below.
 5. **Alignment/tooling plan set** — decided to use `facebook/mms-fa` (Meta's forced-alignment model, same language coverage as MMS-TTS) to align long-form chapter audio against verse-level text.
-6. **Pipeline code + repo ✅** — the full pipeline (`scripts/01_convert_audio.py` → `08_evaluate.py`: MP3→24k WAV, optional music removal, `mms-fa` alignment, confidence filtering, dataset build, F5-TTS preprocess, finetune, CER/WER eval) is written and pushed to **https://github.com/Madhav-Bhanushali/kreol**. Finetune config is sized for the actual GPU (see Environment section).
+6. **Pipeline code + repo ✅** — the full pipeline (`scripts/00_fetch_verses.py` → `08_evaluate.py`: text fetch, MP3→24k WAV, optional music removal, `mms-fa` alignment, confidence filtering, dataset build, F5-TTS preprocess, finetune, CER/WER eval) is written and pushed to **https://github.com/Madhav-Bhanushali/kreol**. Finetune config is sized for the actual GPU (see Environment section).
+7. **Text source resolved ✅** — `scripts/00_fetch_verses.py` pulls the NTKM2009 verse text straight from the **bible.com** chapter pages (YouVersion version id **344**, no API key needed): it parses the verse-tagged HTML spans and writes `data/verses.json` in the exact `{ wav_stem: { verse_num: text } }` format `03_align.py` expects. Validated live on MAT.1 (25 v), ACT.1 (26 v), REV.1 (20 v) with clean verse-level text. It scans the audio folder on the GPU box so the stems match the real filenames exactly.
 
 ## 🚧 Environment (GPU machine: `/root/bonsai`, conda env `f5tts`)
 - GPU confirmed: **NVIDIA RTX PRO 6000 Blackwell (96 GB, sm_120)** → needs CUDA 12.8 wheels (`torch==2.8.0+cu128 torchaudio==2.8.0+cu128`).
 - Setup in progress on the Linux box: ffmpeg, cu128 torch, `ctc-forced-aligner` installed. `f5-tts` currently present as the **PyPI wheel (1.1.22) — inference only**; it must be reinstalled editable from the git clone for training (`git clone https://github.com/SWivid/F5-TTS.git && cd F5-TTS && pip install -e .`).
-- The 260 MP3s still live on the local Windows machine — transfer to the GPU box (`scp -r MFEBSMN2DA root@<host>:~/kreol/`) before running `01_convert_audio.py`.
+- The 260 MP3s are on the GPU box (`~/kreol/MFEBSMN2DA/...`) — transferred and gitignored (history rewritten + force-pushed to purge them from the repo; sync the box with `git fetch origin && git reset --hard origin/main`).
 
 ## ⚠️ Critical finding: the downloaded audio is the Drama recording
 
@@ -35,7 +36,7 @@ This does **not** change the overall plan — alignment, filtering, and training
 
 ## 🔲 To do
 
-1. **Get matching text** — see below. Needed before alignment can run.
+1. **Generate `data/verses.json`** — on the GPU box run `python scripts/00_fetch_verses.py --audio-dir "MFEBSMN2DA/Mauritian Kreol_mfe_BSM_NT_Drama"` (≈2–3 min, throttled). This is the last blocker before alignment can run.
 2. **Forced alignment** — run `mms-fa` (via the `ctc-forced-aligner` package) on chapter audio + verse text → per-verse timestamps. ⚠️ Runs on the **Drama** audio: remove music/SFX first (Preprocessing A.1) and expect more low-confidence segments — be willing to drop more.
 3. **Filter bad alignments** — drop low-confidence/mismatched segments (cross-validation filtering step, same as MMS's own pipeline).
 4. **Build F5-TTS dataset** — `wavs/` folder + `metadata.csv` (`audio_file|text` format), resampled to 24kHz mono.
@@ -50,9 +51,9 @@ This does **not** change the overall plan — alignment, filtering, and training
 
 Confirmed: the audio you have is **Faith Comes By Hearing's recording of the NTKM2009 translation** (*Nouvo Testaman dan Kreol Morisien*, published by the Bible Society of Mauritius, 2009; find.bible ID `MFEBSM`) — the same translation behind `mms-tts-mfe`, and the only widely-available Morisyen Bible audio. Specifically it is the **Drama** audio version (see Critical Finding). Getting the matching text from the **same translation** matters — using a different Morisyen Bible edition's text against this audio will cause verse-level wording mismatches during alignment.
 
-### Where to get it
+### Where to get it (active source marked ✅)
+- ✅ **YouVersion / Bible.com** (`NTKM2009`, version **344**): https://www.bible.com/versions/344-ntkm-nouvo-testaman-dan-kreol-morisien — verse-tagged HTML, no API key required; **this is what `scripts/00_fetch_verses.py` scrapes**. (YouVersion also has a developer Platform API, but the HTML route works without registering.)
 - **find.bible** listing for this exact edition: https://dev.find.bible/bibles/MFEBSM/ — links out to the Digital Bible Library (DBL) entry and YouVersion.
-- **YouVersion / Bible.com** (`NTKM2009`): https://www.bible.com/versions/344-ntkm-nouvo-testaman-dan-kreol-morisien — readable verse-by-verse in browser; has an API for developers, but check their terms before bulk-scraping.
 - **Digital Bible Library (DBL)** — the canonical source for text + explicit licensing terms per translation: https://www.digitalbiblelibrary.org — search "Kreol Morisien" / "NTKM2009". Direct entries for this translation: **text** (https://app.thedigitalbiblelibrary.org/entry?id=616296e8e170ebc1) and the **Drama audio** (https://app.thedigitalbiblelibrary.org/entry?id=f0c8b12c56df11e5). This is the best place to confirm redistribution rights before using the text in a training pipeline.
 - **dokumen.pub** has a readable copy of the full NTKM2009 text (useful for spot-checking verse wording, not recommended as your bulk-download source).
 
@@ -61,8 +62,14 @@ The text is **© 2009 Bible Society of Mauritius**, not public domain and not ob
 1. Check the DBL entry for this translation's explicit license terms (DBL requires publishers to declare usage rights — CC-BY, CC-BY-NC, "digital use only," etc.).
 2. If unclear, contact the Bible Society of Mauritius directly (referenced on the bible.com listing) — for a research/non-commercial ML use case, permission is often straightforward to obtain, but shouldn't be assumed.
 
-### Practical extraction approach
-Once license terms are confirmed, the actual pull is straightforward since the text is verse-tagged: fetch each book/chapter, split into verses, and store as `book_chapter_verse → text` — this verse-level structure is exactly the segmentation granularity you want for aligning against the chaptered audio (see "To do," step 2).
+### Working extraction script (license terms still pending)
+`scripts/00_fetch_verses.py` pulls the text and writes `data/verses.json` in the exact verse-tagged format alignment needs — no manual scraping. Run it on the GPU box (where the audio lives) so the keys are the real wav stems:
+
+```bash
+python scripts/00_fetch_verses.py --audio-dir "MFEBSMN2DA/Mauritian Kreol_mfe_BSM_NT_Drama"
+```
+
+How it works: scans the 260 mp3s to derive stems (`B##___##_...`), maps book number → USFM abbreviation (B01=MAT … B27=REV), fetches each chapter page from `bible.com/bible/344/{ABBR}.{n}`, walks the verse-tagged `<span data-usfm>` DOM with `HTMLParser`, and emits `{ "<wav-stem>": { verse_num: text } }` (retries on failure, ~0.5 s/request). Note that bible.com's own pages carry the **© Bible Society of Mauritius 2009** notice — the script prints this reminder too.
 
 ```json
 // actual format expected by scripts/03_align.py (data/verses.json):
@@ -145,5 +152,5 @@ Hold out a small slice (5–10%) of verses — ideally spanning multiple books/c
 
 ## Open questions to resolve before continuing
 - **Drama audio vs. single-voice training** — the only FCBH/Bible.is audio for this translation is the Drama recording (multi-speaker + background music). Decide whether to (a) proceed with it, removing music and filtering to narrator-only verse segments; (b) treat the fine-tune as a feasibility exercise accepting a less consistent voice; or (c) hunt for another Morisyen audio source. MMS's evidence: a usable `mfe` TTS model was trained from this same audio family with music removed and hard quality filtering.
-- Which exact source you'll use for text (DBL API vs. YouVersion vs. direct contact with Bible Society of Mauritius) — depends on what license terms come back.
+- **Text license** — the exact source is now settled (YouVersion/bible.com, script `00_fetch_verses.py`), but the translation is **© Bible Society of Mauritius 2009** and no open license is confirmed yet (DBL entry `616296e8e170ebc1`). Confirm redistribution rights before bulk use — or contact the Bible Society of Mauritius for research permission.
 - Whether "opencode" use here means an internal research build, or something intended for broader release — this changes how carefully the text license needs to be nailed down before proceeding.
