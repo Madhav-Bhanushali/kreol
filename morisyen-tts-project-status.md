@@ -1,70 +1,97 @@
-# Mauritian Creole (Morisyen) TTS + Voice Pipeline — Project Status
+# Mauritian Creole (Morisyen) TTS — Project Status
 
-## ⏸️ On hold — Bible-based TTS fine-tuning (not being worked on right now)
+## PIVOT NOTICE (read first)
+Plan changed. Everything previously active is now on hold. New active task: **fine-tune Chatterbox Multilingual V3 on the Bible dataset, warm-starting from its native French capability, to get emotion-controllable Morisyen speech.**
 
-The original plan — fine-tuning F5-TTS on Mauritian Creole using Bible audio as training data — is **paused, not cancelled**. Setting it aside for now to focus on the Gemma pipeline below. Everything already figured out is preserved here so it can be picked back up without re-deriving it.
+---
+
+## ⏸️ On hold — F5-TTS fine-tuning plan
+
+Superseded by the Chatterbox v3 plan below — same underlying Bible audio/text data gets reused, different model/architecture.
 
 <details>
-<summary>Click to expand: paused Bible fine-tuning plan</summary>
+<summary>Click to expand: paused F5-TTS plan</summary>
 
-### Goal (paused)
-Fine-tune F5-TTS on Mauritian Creole (`mfe`) using Bible audio as the training source, following the same data-sourcing approach Meta used to build `facebook/mms-tts-mfe`.
-
-### Decided so far
-1. **Landscape research** — `facebook/mms-tts-mfe` (VITS) is the only dedicated public Morisyen TTS checkpoint; no larger/better-trained alternative exists, and no community LoRA/extension ecosystem exists for this language.
-2. **Base model** — F5-TTS (flow-matching, DiT-based), vanilla base checkpoint, no related-language warm-start (dropped for time).
-3. **License** — F5-TTS's pretrained checkpoint is CC-BY-NC; MMS-TTS checkpoints (`mms-tts-mfe`, `mms-tts-crs`, `mms-tts-fra`) are CC-BY-NC-4.0 too. Any fine-tune stays non-commercial until resolved separately.
-4. **Audio** — Mauritian Creole Bible audio obtained (Faith Comes By Hearing recording, NTKM2009 translation).
-5. **Alignment plan** — use `facebook/mms-fa` to align chapter audio against verse-level text.
-
-### Remaining steps, when resumed
-1. Get matching NTKM2009 text — via **find.bible** (`dev.find.bible/bibles/MFEBSM`), **bible.com/versions/344-ntkm-nouvo-testaman-dan-kreol-morisien**, or the **Digital Bible Library**. ⚠️ Text is © 2009 Bible Society of Mauritius — check DBL's stated license terms (or contact them directly) before using it at scale, separately from whatever terms the audio came under.
-2. Forced alignment (`mms-fa` / `ctc-forced-aligner`) → verse-level timestamps.
-3. Filter bad alignments, build the F5-TTS dataset (`wavs/` + `metadata.csv`), preprocess (`prepare_csv_wavs.py`), fine-tune (`finetune_cli.py`), evaluate against `mms-1b-all` for WER/CER.
-4. Resolve the commercial-license question before any production use.
+- Base model was F5-TTS (flow-matching, DiT), vanilla checkpoint, no warm-start (dropped for time).
+- License problem that motivated this pivot: F5-TTS's pretrained checkpoint is CC-BY-NC (inherited from Emilia training data) — any fine-tune stays non-commercial.
+- Fine-tuning pipeline (`finetune_cli.py`, `--tokenizer char`, etc.) was fully worked out — see prior conversation history if this path is ever revisited.
 
 </details>
 
-## 🎯 Active task: Gemma (audio understanding) + fine-tuned Morisyen TTS pipeline
+## ⏸️ On hold — Gemma audio pipeline
 
-**Gemma is audio-in, text-out only** — it doesn't generate audio itself. Its audio encoder (conformer-based, built on Google's Universal Speech Model) feeds audio in as input tokens to the LLM, unifying ASR + reasoning in one model — but speech generation still requires a separate TTS model. The two components aren't redundant; each does half the job.
+Set aside per pivot. Was: audio-in Gemma (ASR + reasoning) → TTS → audio out, using `facebook/mms-tts-mfe` as placeholder voice. Revisit once the Chatterbox fine-tune produces a real Morisyen checkpoint to plug into the TTS leg of that pipeline.
 
-### ⚠️ Dependency note
-The TTS leg of this pipeline was meant to be the F5-TTS/MMS model from the paused work above. Since that's on hold, this pipeline can be built and tested end-to-end using **`facebook/mms-tts-mfe`** as-is (the existing pretrained Morisyen checkpoint, unmodified) as a placeholder output voice — swap in the fine-tuned version later without changing anything else in the pipeline.
+---
 
-### ⚠️ Critical unknown to test first
-Gemma is trained on 140+ spoken languages, but there's no confirmation Mauritian Creole (~1.3M speakers) is among them. **Test Gemma's transcription accuracy on real Morisyen audio before building the pipeline around it.**
-- **Fallback if Gemma's ASR underperforms**: use `facebook/mms-1b-all` for the ASR leg specifically (explicitly covers `mfe`), and let Gemma handle only the LLM-reasoning step on top of MMS's transcript — a two-model front end instead of one.
+## 🎯 Active task: Fine-tune Chatterbox V3 on Morisyen Bible audio, French warm-start, emotion-aware
 
-### Other constraints
-- **Confirmed: 30-second limit per encoder pass.** Audio longer than that needs chunking before it reaches Gemma.
-- **License note**: Gemma is licensed for responsible commercial use — unlike the TTS side. Gemma is not the commercial-use blocker here; the TTS checkpoint (CC-BY-NC either way, pretrained or fine-tuned) remains the actual constraint.
+### Why this approach
+1. **License is finally clean.** Chatterbox's code and pretrained checkpoints are MIT licensed — unlike every other base model considered so far (F5-TTS, MMS-TTS all CC-BY-NC). A fine-tune from this checkpoint is not automatically restricted to non-commercial use the way the earlier paths were.
+2. **French warm-start is free** — French is one of Chatterbox V3's 23 native base languages, so there's no need to hunt down a separate community French checkpoint (unlike the F5-TTS plan, which needed `RASPIAUDIO/F5-French-MixedSpeakers-reduced`). Since Kreol Morisien vocabulary is heavily French-derived, starting from a model that already has French phonetics/prosody should meaningfully reduce how much the fine-tune needs to learn from nothing — same warm-start logic used for Marathi←Hindi and the existing `chatterbox-indic-lora` project's Brahmic warm-starts.
+3. **Native emotion control** — Chatterbox V3 is the first open-source TTS model with built-in emotion exaggeration control (`exaggeration` parameter, 0.25–2.0, default 0.5), independent of language. This is architecturally already there in the base model; fine-tuning needs to preserve and extend it into Morisyen rather than build it from scratch.
 
-### Chunking approach (needed given the 30s limit)
-Naive fixed-length chunking (slicing every 30s) risks cutting mid-word or mid-sentence, degrading transcription right at chunk boundaries.
-- Prefer **silence-based chunking**: split on pauses (`librosa.effects.split` or a VAD tool like `webrtcvad`/`silero-vad`), keeping chunks under ~28s to leave headroom.
-- If a single utterance genuinely exceeds 30s with no natural pause, fall back to a hard split at the nearest low-energy point.
-- For multi-turn conversation audio, chunk per speaker turn where possible — sets up cleanly for feeding Gemma one turn at a time in the reasoning step.
+### Architecture recap
+- **T3** (0.5B Llama-based token generator): text/audio-token transformer, decoder-only, predicts speech tokens conditioned on text + language ID + speaker embedding + the exaggeration/emotion conditioning.
+- **S3Gen**: diffusion-based vocoder, converts speech tokens to waveform.
+- Same brain/vocoder split established earlier in this project: **T3 is what gets fine-tuned for the new language; S3Gen stays untouched.**
+
+### Warm-start mechanism (same pattern as `reenigne314/chatterbox-indic-lora`, applied to French → Morisyen instead of Hindi → other Indic languages)
+1. Start from the official base checkpoint directly — no separate French model needed:
+   ```python
+   from chatterbox.mtl_tts import ChatterboxMultilingualTTS
+
+   model = ChatterboxMultilingualTTS.from_pretrained(device="cuda", t3_model="v3")
+   ```
+2. **Tokenizer**: Morisyen is Latin-script, same alphabet family as French — check whether any accented characters used in Kreol Morisien orthography are missing from the existing vocab (likely minimal gaps, unlike the Devanagari/Tamil-script extensions needed for Indic languages). Extend only if needed; mean-init any genuinely new tokens.
+3. **Language embedding**: add a new `mfe` row to the language-ID embedding table. **Warm-start it as a copy of the `fr` (French) row**, not random init — this is the crux of the whole warm-start strategy, directly transferring whatever French-phonetics knowledge the base model already has into the new language's starting point.
+4. **LoRA fine-tune**, not full fine-tune — same reasoning as before: protects the other 22 languages from catastrophic forgetting. Target the same modules as the reference Indic LoRA project: `q/k/v/o` attention projections in T3 (their config used rank-32, ~7.8M/544M trainable params — a reasonable starting point here too).
+5. Freeze S3Gen and the speaker encoder entirely — untouched, per the brain/vocoder split.
+
+### Dataset: WorldSpeech `mfe_mu` (replaces Bible audio plan)
+
+**Switched data source** — using `disco-eth/WorldSpeech`, config `mfe_mu`, instead of the Bible recordings from the paused plan.
+
+- **44.3 hours** of aligned Mauritian Creole speech, quality score 3.45 (DNSMOS-based).
+- **Source**: Mauritian National Assembly parliamentary proceedings — public record, not a copyrighted third-party religious translation. Resolves the unconfirmed Bible-text-license question that was an open item in the paused plan.
+- **Format already matches what's needed** — no separate forced-alignment step required. Each row already comes as: 24kHz audio, human-provided transcript, aligned ASR transcript, CER, WADA-SNR, DNSMOS-P.835 quality scores.
+  ```python
+  from datasets import load_dataset
+
+  ds = load_dataset("disco-eth/WorldSpeech", "mfe_mu", split="train")
+  row = ds[0]
+  wav = row["audio"]["array"]
+  sr = row["audio"]["sampling_rate"]
+  text = row["human_transcript"]
+  cer = row["cer"]
+  ```
+  Filter on `cer` before using a row for training — same principle as the alignment-confidence filtering that was planned for the Bible data, just already computed for you here.
+- **Honest limitation, same shape as before, different source**: WorldSpeech's own paper notes its speaking style is closer to formal prepared speech than to spontaneous conversation, skewed toward parliamentary/broadcast register. This does **not** solve the flat-emotional-range concern — parliamentary proceedings are still a formal register, just a different one than liturgical reading. Don't expect this switch alone to unlock wide `exaggeration` range for Morisyen.
+- Bible audio previously obtained is no longer the primary path — keep it around only if WorldSpeech's 44.3h turns out insufficient after a first training pass.
+
+### Toolkit
+Same fine-tuning toolkit already scoped earlier in this project: **`gokhaneraslan/chatterbox-finetuning`** (Standard mode, not Turbo — LJSpeech-format dataset, `is_lora=True`, `--tokenizer` handling as described in its repo docs).
 
 ### To do
-- [x] Test Gemma's ASR on sample Morisyen audio clips — confirm whether it can transcribe at all before relying on it.
-- [x] If Gemma's Morisyen ASR is weak/absent: wire `mms-1b-all` as the ASR leg instead, feeding its transcript into Gemma for the reasoning/response-generation step.
-- [x] Decide the response-generation language: Gemma generates replies directly in Kreol Morisien text, or generates in a well-resourced language and translates — depends on how strong Gemma's Morisyen generation turns out to be.
-- [x] Wire up `facebook/mms-tts-mfe` as the placeholder output voice (see dependency note).
-- [x] Build the glue code: audio in → (Gemma or MMS ASR) → transcript → Gemma reasoning → response text → TTS → audio out.
-- [x] Implement silence/VAD-based audio chunking for inputs over 30s.
-- [x] End-to-end latency check once both legs are wired.
+- [x] Load `disco-eth/WorldSpeech` config `mfe_mu` via `datasets`; inspect actual hour count / row count and `cer`/quality-score distribution.
+- [x] Filter rows by CER threshold (e.g. CER < 0.2–0.3, matching the dataset paper's own quality filtering convention) to drop poorly-aligned segments.
+- [x] Convert filtered rows into LJSpeech-format dataset (`wavs/` + `metadata.csv`) for the fine-tuning toolkit.
+- [ ] Load base Chatterbox V3 checkpoint (`t3_model="v3"`), inspect tokenizer vocab for any missing Morisyen-specific characters.
+- [ ] Add `mfe` language embedding row, initialized as a copy of the `fr` row (not random).
+- [ ] Configure LoRA (rank-32 starting point, target `q/k/v/o` in T3, freeze S3Gen + speaker encoder + all other language rows).
+- [ ] Run fine-tune via `gokhaneraslan/chatterbox-finetuning`.
+- [ ] Evaluate: WER/CER against `facebook/mms-1b-all` transcription of generated audio; listen-test at a couple of `exaggeration` settings to see whether emotion control transfers at all to `mfe`, even if range is limited by the formal-register training data.
+- [ ] Regression check: confirm French (and a couple of other original 23 languages) still generate correctly after the `mfe` fine-tune — LoRA + frozen embeddings should protect this, but verify rather than assume.
 
 ### Status notes (append-only)
-- **Gemma ASR tested on real Morisyen (B01 Matthew 1, 25s + 75s clips from the drama audio).** Verdict: it CAN transcribe Morisyen, but with heavy errors and unstable orthography — it mixes French spellings into the output ("ci papa" / "c'est papa", "s'appelle", "Son maman") and garbles names. On the same 25s clip, `facebook/mms-1b-all` was near-perfect ("abraam ti papa izaak izaak ti papa zakob zakob ti papa zida ek so bann frer zida ti papa perez ek zera zot mama ti apel tamar perez ti papa esron"; 1 minor error) vs Gemma's error-dense French-mixed version. → **ASR leg = `mms-1b-all`; Gemma handles reasoning only** (as the doc's fallback prescribes). Pipeline defaults to `--asr mms`.
-- **Gemma's Morisyen generation is strong** — given the MMS transcript, it replied in fluent Kreol Morisien ("Sa se sa bann non bann papa ek zot gran-papa ki nou konn? Ki sa ou anvi konn plis sou zot?"). → **Decided: Gemma generates replies directly in Kreol Morisien** (no translate-then-back step).
-- **`.env` correction:** the pasted `GEMMA_AUDIO_BASE_URL=http://45.194.3.34:8101/v1` is dead (unreachable from both this machine and the box). The live audio endpoint is `http://43.242.226.49:8101/v1` (same host as the text endpoint; auth `GEMMA_AUDIO_API_KEY=gemma4-secret`, verified HTTP 200 on `/v1/models`). `.env` on both machines updated.
-- **Chunking verified on real audio:** 75s Matthew 1 clip → 4 silence/VAD chunks (max 27.9s), each transcribed correctly. Synthetic test confirmed the >28s single-utterance hard-split at the nearest low-energy point.
-- **End-to-end pipeline works on the box** (`scripts/gemma_pipeline.py --asr mms`): 25s input → ASR 9.5s + reason 0.2s + TTS 10.0s (both model loads included on first run; warm runs faster) = 19.7s total → 7.34s reply wav. ASR/TTS model weights cache on the box so repeat runs drop well below this.
-- **Live demo launched (any language in → Kreol out).** New `scripts/whisper_asr.py` (faster-whisper, auto language detection, silero VAD, handles long audio) + `scripts/live_demo.py` (Gradio UI). Verified on the box with two non-Kreol inputs: French "Bonjour, comment allez-vous aujourd'hui ?" (whisper detected `fr`) and Hindi "नमस्ते! आप कैसे हैं?" (detected `hi`) — Gemma answered both in fluent Kreol Morisien ("Mwa byen, merci! Et ou menm, kouman ou ye?" / "Mo byen, mersi. Lagwa kisa to di, to la?"), each saved as a spoken reply wav. Running on the box at **http://43.242.226.61:7860** (tmux session `live`, CPU mode so it doesn't fight the training jobs; GPU busy → set `CUDA_VISIBLE_DEVICES=''`). Reached externally (HTTP 200).
-- **Gemma text endpoint quirk:** `max_tokens=512` hangs the request (read timeout); `<=400` responds in ~0.2s. `scripts/gemma_reason.py` now defaults to `max_tokens=256` with a configurable timeout (`GEMMA_TIMEOUT`, default 60s) so the demo fails fast instead of hanging.
+- **Data-source correction:** `mfe_mu` is **not** National Assembly proceedings — every one of the 10,237 rows has `source = jw_bible_kreol_morisien` (the JW Bible in Kreol Morisien, copyright-restricted translation). User confirmed to proceed with it anyway. The license question is therefore still open, same shape as the old Bible plan; attribution/non-commercial constraints likely apply.
+- **Dataset inspection (md#1):** 10,237 train rows / 42.1h total audio / all 24 kHz / clips ~15s (constant; min 3.6s). CER: min 0.0, p10 0.095, median 0.191, p90 0.282, max 0.498, no NaN. Test split: 539 rows. Actual quality columns are `snr` + `dnsmos_sig/bak/ovr/p808` (not `wada_snr`/`dnsmos_p835` as the md listed).
+- **CER filter (md#2):** chose **CER < 0.3** → keeps 9,681 rows / 39.8h (95%); CER < 0.2 would keep 22.5h, CER < 0.25 keeps 32.0h. Re-runnable via `--cer`.
+- **LJSpeech build (md#3):** `scripts/build_ljspeech_dataset.py` → `data/worldspeech_mfe_ljspeech/` (`wavs/` 24 kHz mono PCM-16 + `metadata.csv` as `id|human_transcript|human_transcript`). Workaround: `datasets` 5.0.1 decodes audio via `torchcodec`, whose binary mismatches the box's torch 2.8 (undefined symbol) — the script loads the audio column as raw bytes and decodes with `soundfile` instead. HF token now in `.env` (gitignored) on both machines.
+- **Chatterbox is a new toolchain** — not yet installed anywhere; the box has space now (198G free after the user's cleanup), so model/dataset downloads go to the box.
 
 ---
 
 ## Open questions
-- Whether "opencode" use here means an internal research build, or something intended for broader release — matters most once the paused Bible-text licensing question is picked back up.
+- Bible text license terms — not yet confirmed.
+- Whether to pursue non-liturgical Morisyen audio for genuine emotion-range coverage, or accept a limited emotional range as a known constraint of this data source for now.
