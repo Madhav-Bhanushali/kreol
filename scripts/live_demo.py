@@ -56,7 +56,7 @@ def build():
         )
         with gr.Row():
             with gr.Column():
-                audio = gr.Audio(source=["microphone", "upload"], type="filepath",
+                audio = gr.Audio(sources=["microphone", "upload"], type="filepath",
                                  label="Speak here (any language)")
                 model = gr.Dropdown(choices=list(SIZES), value="small", label="Whisper model size")
                 btn = gr.Button("Run", variant="primary")
