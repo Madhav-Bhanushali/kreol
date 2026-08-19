@@ -32,5 +32,9 @@ GEMMA_AUDIO_API_KEY = os.environ.get("GEMMA_AUDIO_API_KEY", "")
 GEMMA_MODEL = os.environ.get("GEMMA_MODEL", "google/gemma-4-E4B-it")
 ENABLE_GEMMA = os.environ.get("ENABLE_GEMMA", "0") == "1"
 
+# per-request timeout for the text endpoint (seconds); the endpoint can stall
+# under load, so fail fast and let the caller retry
+GEMMA_TIMEOUT = float(os.environ.get("GEMMA_TIMEOUT", "60"))
+
 # headroom under the 30s encoder limit
 MAX_CHUNK_SECONDS = 28.0
