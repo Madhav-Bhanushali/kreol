@@ -88,6 +88,13 @@ def gemma_transcribe_wav_bytes(wav_bytes, api_key=None, base_url=None, model=Non
 
 def mms_transcribe_wav(wav_path, lang="mfe", device=None):
     """Fallback ASR leg: facebook/mms-1b-all (covers mfe) via local torch."""
+    from vad_chunk import load_wav
+
+    y, sr = load_wav(wav_path, sr=16000)
+    return mms_transcribe_waveform(y, sr, lang=lang, device=device)
+
+
+def mms_transcribe_waveform(y, sr, lang="mfe", device=None):
     import torch
     from transformers import Wav2Vec2ForCTC, Wav2Vec2Processor
 
@@ -95,9 +102,6 @@ def mms_transcribe_wav(wav_path, lang="mfe", device=None):
     processor = Wav2Vec2Processor.from_pretrained("facebook/mms-1b-all")
     model = Wav2Vec2ForCTC.from_pretrained("facebook/mms-1b-all").to(device)
 
-    from vad_chunk import load_wav
-
-    y, sr = load_wav(wav_path, sr=16000)
     inputs = processor(y, sampling_rate=sr, return_tensors="pt")
     with torch.no_grad():
         logits = model(inputs.input_values.to(device)).logits
@@ -106,21 +110,24 @@ def mms_transcribe_wav(wav_path, lang="mfe", device=None):
 
 
 def transcribe_file(audio_path, asr="gemma", max_seconds=28.0, top_db=35.0, out=None):
-    chunks, _ = chunk_file(audio_path, max_seconds=max_seconds, top_db=top_db)
+    import io
+
+    import soundfile as sf
+
+    from vad_chunk import load_wav, silence_chunks
+
+    y, sr = load_wav(audio_path, sr=16000)
+    chunks = silence_chunks(y, sr, max_seconds=max_seconds, top_db=top_db)
     results = []
     for i, (start, end) in enumerate(chunks, 1):
         t0 = time.time()
+        seg = y[int(start * sr): int(end * sr)]
         if asr == "gemma":
-            import io
-            import soundfile as sf
-
-            from vad_chunk import load_wav
-
-            y, sr = load_wav(audio_path, sr=16000)
-            seg = y[int(start * sr): int(end * sr)]
             buf = io.BytesIO()
             sf.write(buf, seg, sr, format="WAV")
             text = gemma_transcribe_wav_bytes(buf.getvalue())
+        elif asr == "mms":
+            text = mms_transcribe_waveform(seg, sr)
         else:
             raise ValueError(f"unknown --asr {asr!r} (use 'gemma' or 'mms')")
         dt = time.time() - t0
