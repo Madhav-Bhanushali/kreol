@@ -24,7 +24,19 @@ Set aside per pivot. Was: audio-in Gemma (ASR + reasoning) → TTS → audio out
 
 ---
 
-## 🎯 Active task: Fine-tune Chatterbox V3 on Morisyen Bible audio, French warm-start, emotion-aware
+## ✅ Active task — COMPLETE (final artifact delivered Aug 20, 2026)
+
+**Final results (production deliverable):** `mfe_output/final/` — standalone merged checkpoint `t3_finetuned_merged.safetensors` (2.14 GB) + pre-merge 10-epoch LoRA adapter (`adapter/`) + `README.md`; integrity-verified (sha256 vs backup, `[mfe]` row bit-identical merged↔adapter for text_emb & text_head).
+
+- **Base model:** Chatterbox V3 (`t3_model="v3"`), MIT-licensed.
+- **Warm-start:** `[mfe]` row (id 2454) copied from `[fr]` (id 634), then fine-tuned.
+- **Data:** WorldSpeech `mfe_mu`, CER-filtered (<0.3) → 9,645 clips / ~39.8 h.
+- **Training:** 10 epochs (3,010 steps, ~22 min), LoRA r=32 on q/k/v/o only, rest frozen, bf16.
+- **Eval (mms-1b-all, mfe):** held-out 80 texts → **CER 0.146 / WER 0.239**; ASR ceiling on real audio 0.122/0.226; merged sanity (n=10) 0.155/0.235.
+- **Not adopted:** 15-epoch extended run (overfit — eval worsened to 0.153/0.260) — kept only in `extended_15ep/` for reference.
+
+<details>
+<summary>Full build detail and history below</summary>
 
 ### Why this approach
 1. **License is finally clean.** Chatterbox's code and pretrained checkpoints are MIT licensed — unlike every other base model considered so far (F5-TTS, MMS-TTS all CC-BY-NC). A fine-tune from this checkpoint is not automatically restricted to non-commercial use the way the earlier paths were.
@@ -128,6 +140,8 @@ Same fine-tuning toolkit already scoped earlier in this project: **`gokhanerasla
 - [x] Run fine-tune via `gokhaneraslan/chatterbox-finetuning`.
 - [x] Evaluate `mfe` WER/CER against `facebook/mms-1b-all` — strong result, see "Results" above.
 - [x] Regression check on French — **failed**, see "Results" above, mitigation now in progress.
+
+</details>
 
 ---
 

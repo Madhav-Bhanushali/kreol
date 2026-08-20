@@ -101,7 +101,9 @@ def load_merged_engine():
     new_t3 = resize_and_load_t3_weights(new_t3, state, new_token_init_row=cfg.fr_token_id)
     del temp, state
 
-    merged_path = os.path.join(cfg.output_dir, "t3_finetuned_merged.safetensors")
+    merged_path = os.path.join(cfg.output_dir, "final", "t3_finetuned_merged.safetensors")
+    if not os.path.exists(merged_path):
+        merged_path = os.path.join(cfg.output_dir, "t3_finetuned_merged.safetensors")
     if not os.path.exists(merged_path):
         raise FileNotFoundError(f"Merged checkpoint not found: {merged_path} (run merge_lora.py first)")
     new_t3.load_state_dict(load_file(merged_path), strict=True)
