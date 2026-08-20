@@ -92,6 +92,32 @@ Same fine-tuning toolkit already scoped earlier in this project: **`gokhanerasla
 - [x] **Exaggeration listen-test** on the merged model: generate the same test sentences at `exaggeration` 0.3 / 0.5 / 0.8 / 1.2, one separate wav per setting, for by-ear comparison. *(Done Aug 20: 4 sentences × 4 exagg = 16 wavs at `mfe_output/merged_eval/exagg_*.wav` on the box, also copied locally to `exagg_samples/`.)*
 - [x] **Quick sanity check**: mfe CER/WER via `mms-1b-all` on a few outputs from the merged standalone checkpoint — confirm it still matches the adapter numbers (~CER 0.146 / WER 0.239), i.e. merging changed nothing. *(Done Aug 20, n=10 held-out texts, merged model: CER 0.155 / WER 0.235 — matches adapter 0.146/0.239 within sampling noise.)*
 
+### 🧪 Experiment — extended training: resume from 10-epoch adapter, +5 epochs (comparison only — NOT adopted yet)
+**Status: results in (in progress → decision pending).** Separate from the 10-epoch run below; original production adapter + merged checkpoint untouched.
+
+- [x] **Backup current state before the experiment** → `mfe_output/backup_10ep/` (verified, sha256 match): `t3_finetuned_merged.safetensors`, full `adapter/` (the 10-epoch `new_lang_adapter` used by merge_lora.py), `config.py`, `trainer_state.json` + `loss_curve_10ep.csv` (120-point loss log 6.85→4.07), `tensorboard_runs/`, and `train.log`.
+- [x] **Resume training** (`resume_train.py`): loaded the trained 10-epoch adapter (`PeftModel.from_pretrained(..., is_trainable=True)`) instead of fresh LoRA init; all settings identical to first run — LoRA r=32/α=64, targets q/k/v/o, modules_to_save text_emb/text_head, `mfe` row kept warm-started from `fr`, same WorldSpeech `mfe_mu` CER-filtered dataset (reused preprocessed `.pt`), batch 16 × accum 2, lr 1e-4, bf16, no grad-checkpointing. No French replay (mitigation cancelled). Output to **`mfe_output/extended_15ep/`** (original untouched). *Note: fresh optimizer/scheduler → LR re-annealed 1e-4→0 across the 5 epochs.*
+- [x] **Run + report loss curve** (5 epochs = 1,505 steps, ~10.5 min, finished Aug 20):
+
+  | step | 10-epoch run | 15-epoch run |
+  |------|-------------|--------------|
+  | 25   | 6.853       | **4.157**    |
+  | 250  | 4.769       | 4.094        |
+  | 500  | 4.530       | 4.064        |
+  | 750  | 4.415       | 4.040        |
+  | 1000 | 4.334       | 4.021        |
+  | 1250 | 4.240       | 3.963        |
+  | 1500 | 4.225       | 3.973        |
+  | 3000 | 4.072       | —            |
+  | min  | 4.061       | 3.951        |
+
+  Verdict: **loss is still genuinely moving** (4.16 → 3.97 over the 5 epochs, −0.19) but the curve is flattening — last 100 steps ~4.02→3.97 with mild noise. Not flat, not noisy-plateau, but the per-epoch gain is much smaller than in the first run's early epochs.
+- [x] **Eval on same 80 held-out texts (identical generation params, mms-1b-all mfe):**
+  - Original 10-epoch adapter: **CER 0.146 / WER 0.239**
+  - Extended 15-epoch adapter: **CER 0.153 / WER 0.260** → slightly *worse* on held-out speech despite lower training loss (mild overfitting signature).
+- [x] **Nothing merged/replaced** — production checkpoint remains the 10-epoch adapter + `t3_finetuned_merged.safetensors`. Extended artifacts live only in `extended_15ep/` (adapter + checkpoints + eval/metrics.json + loss_curve_15ep.csv).
+- **Decision needed:** loss still declining ⇒ per the run-more rule, **confirm with me before running additional epochs**; eval suggests we're past the generalization sweet spot (overfitting), so I'd recommend *not* extending further unless a specific artifact needs it.
+
 ### Completed (first training run)
 - [x] Load `disco-eth/WorldSpeech` config `mfe_mu` via `datasets`; inspect actual hour count / row count and `cer`/quality-score distribution.
 - [x] Filter rows by CER threshold to drop poorly-aligned segments.
