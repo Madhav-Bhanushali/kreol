@@ -39,12 +39,20 @@ knobs produce real variation before any training.
 
 ## 🎯 Phase 1 — Data research + fine-tune plan (NOT started; blocked on Phase 0 decision)
 
-- [ ] **Data source — RESOLVED (research 2026-08-20):** plan's assumptions were wrong on two counts.
+- [x] **Data source — RESOLVED (research 2026-08-20):** plan's assumptions were wrong on two counts.
      1. **`ai4bharat/Rasa` DOES cover Marathi** — 22 language configs (incl. a full `Marathi` config: 26,960 train / 2,995 test rows, ~17 GB train audio; 48 kHz mono; per-utterance `style` and `gender` fields; 6-Ekman expressive + neutral + commands/conversations/news/narration; cc-by-4.0; gated — must accept terms). The indic-lora manifest's `data/rasa/mr/` reference points here — i.e. the indic-lora Marathi adapter was trained on Rasa Marathi data.
      2. **No dataset literally named "Rasmalai" exists on HF** under any ai4bharat author (API searches: `search=rasmalai`, author ai4bharat/ai4bharat-indic-speech/ai4bharat-indic-scribers → all empty). Rasmalai (Interspeech 2025, arXiv:2505.18609) is a **paper + annotation pipeline**: 13,000 h / 23 Indic langs + English / 24 M text-description annotations built ON TOP of existing corpora (Rasa, IndicVoices-R, etc.) for the **IndicParlerTTS** family — not a standalone downloadable Marathi corpus.
      3. The "~400 h / 13 languages / 6 Ekman" figure is a conflation: the **6-Ekman expressive subset originally covered only 3 languages (as/bn/ta)** per ai4bharat.iitm.ac.in; the 13-language figure comes from Indic-TTS; IndicParlerTTS used a 288 h / 9-language Rasa slice (Marathi therein = 122.47 h / 54,894 utterances, incl. non-emotional styles). Per-language emotion-row counts in the Marathi Rasa config are NOT yet verified — the config's `style` field is the way to measure it.
-- [ ] **Decision needed (owner):** pick Phase 1 source = (A) `ai4bharat/Rasa` Marathi config directly (recommended — matches what indic-lora used, has gender+style fields, no new annotation infra needed; requires accepting gated terms), or (B) replicate Rasmalai-style annotation over Rasa+other Marathi audio (richer prompts but big new pipeline), or (C) other.
-- [ ] Within chosen source, count **Marathi emotion-labeled rows** (6 Ekman styles) + total female hours; if emotion rows are thin, fall back to neutral-heavy female Marathi and rely on the exaggeration knob for expressivity — **report actual hours/speakers before training**.
+- [x] **Decision (owner, 2026-08-20):** Phase 1 source = **`ai4bharat/Rasa` Marathi config directly** (option A). Gated terms accepted (account Fealtyy). Downloaded ~17 GB to box `/root/bonsai/indic-emotion/rasa_marathi/` (57 train + 7 test parquet, 64/64, audio embedded). Verified counts below.
+- [x] **Marathi counts (verified by scanning local parquet, 2026-08-20):**
+  - **Speakers: exactly 2 — `MAR_F` (female) and `MAR_M` (male).** Single female speaker → single-speaker female training is well-defined.
+  - train: 26,960 rows / **49.9 h**; test: 2,995 / 5.5 h. Dur 0.39–43.8 s, median ~5.9 s.
+  - **Female (`MAR_F`): 13,924 rows / 25.95 h (train)**, test 1,548 / 2.85 h.
+  - **6 Ekman emotions present** (ANGER, DISGUST, FEAR, HAPPY, SAD, SURPRISE): all = 5,221 rows / 12.01 h train (1.34 h test); **female = 2,631 rows / 6.08 h train** (0.68 h test), ~0.95–1.1 h per emotion (balanced).
+  - Neutral/other female: WIKI 8.27 h + CONV 2.94 h + BOOK 2.74 h + NEWS 1.98 h + PROPER NOUN 1.76 h etc.
+  - Style labels: ALEXA, ANGER, BB, BOOK, CONV, DIGI, DISGUST, FEAR, HAPPY, INDIC, NEWS, PROPER NOUN, SAD, SURPRISE, UMANG, WIKI. `gender` + `style` fields native.
+  - Comparison: Morisyen had 9,645 clips / 39.8 h; here female Marathi alone = 13,924 clips / 25.95 h with 6.08 h emotion-labeled — comparable scale.
+- [ ] **Training go/no-go (owner):** numbers above look sufficient (25.95 h female, balanced 6 emotions). If greenlit: train LoRA r=32 q/k/v/o on V2 base for `mr` female, warm-start from Hindi `hi` row, lock speaker embedding (single-speaker), data = female-only Rasa Marathi (all styles, emotion-weighted or all-in), reserve test split for eval.
 - [ ] Filter to **female-speaker-only** rows (Rasa has a `gender` field; cross-reference `ai4bharat/indic-parler-tts` metadata if needed).
 - [ ] Warm-start new `mr` embedding row from **Hindi (`hi`)** row (not `fr`).
 - [ ] Decide whether to **lock/fix the speaker embedding** during training (single-language single-speaker) — document reasoning either way.
@@ -58,4 +66,5 @@ knobs produce real variation before any training.
 - **Rasmalai is NOT a distinct HF dataset.** It is a paper (Interspeech 2025, arXiv:2505.18609) + annotation pipeline over existing corpora (Rasa, IndicVoices-R, ...) → 13,000 h / 24 languages / 24 M text descriptions, used for IndicParlerTTS. No "rasmalai" dataset on HF (verified via API: search=rasmalai, author ai4bharat*, all empty).
 - **6-Ekman expressive subset originally = only as/bn/ta** (ai4bharat.iitm.ac.in); the "13 languages / ~400 h" memory conflates Indic-TTS's 13 langs and IndicParlerTTS's 288 h / 9-lang Rasa slice (Marathi slice there = 122.47 h / 54,894 utt, mixed styles). Marathi per-emotion row counts unverified — measure via the `style` field once gated access is accepted.
 - Indic-lora claims Malayalam CER 0.86 (experimental) — irrelevant here (Marathi-only).
-- **Marathi coverage/hours/gender are now largely resolved**; the remaining unknown is per-emotion row counts in the Marathi config (needs gated access + row scan).
+- **Marathi coverage/hours/gender are now resolved** (full counts above). Female-speaker data: 25.95 h train / 2.85 h test; 6-Ekman female: 6.08 h / 0.68 h. No thin-data concern.
+- Rasa Marathi parquet files are partitioned by gender (first files all male) — filenames `MAR_[FM]_<STYLE>_<NNNNN>`, wavs 48 kHz mono embedded in parquet.
