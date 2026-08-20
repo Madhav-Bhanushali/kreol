@@ -11,11 +11,17 @@ Controls (verified against ChatterboxMultilingualTTS.generate):
                   knob: logits = cond + cfg*(cond - uncond). Chatterbox has no
                   speech-rate parameter; pacing is set by the model's token count.
   --temperature   sampling randomness (default 0.8; must be > 0)
+
+Long text: the model emits EOS after ~one ~15s utterance (training clips were
+~15s), so long text is split into sentences, each synthesized separately and
+joined with 0.25s pauses. No hard length cap.
 """
 import argparse
 import os
+import re
 import sys
 
+import numpy as np
 import torch
 import soundfile as sf
 
@@ -27,6 +33,60 @@ from src.utils import trim_silence_with_vad
 from chatterbox.mtl_tts import ChatterboxMultilingualTTS
 from chatterbox.models.t3.t3 import T3
 from safetensors.torch import load_file
+
+_SENT_RE = re.compile(r"(?<=[.!?…])\s+")
+_COMMA_RE = re.compile(r"(?<=[,;:،])\s+")
+_MAX_SEG = 300
+
+
+def split_text(text):
+    """Split text into segments the model can complete before EOS.
+
+    The mfe model was trained on ~15s auto-chunked clips, so it emits EOS
+    after roughly one utterance (~15s / ~25 tokens-per-sec). Passing a long
+    single string truncates to that. Splitting into sentences (and further
+    splitting any segment over _MAX_SEG chars on commas) keeps each generation
+    short enough to finish properly; segments are joined with short pauses.
+    """
+    segments = []
+    for sent in _SENT_RE.split(text.strip()):
+        sent = sent.strip()
+        if not sent:
+            continue
+        if len(sent) <= _MAX_SEG:
+            segments.append(sent)
+        else:
+            parts = _COMMA_RE.split(sent)
+            cur = ""
+            for part in parts:
+                part = part.strip()
+                if not part:
+                    continue
+                if cur and len(cur) + 1 + len(part) > _MAX_SEG:
+                    segments.append(cur)
+                    cur = part
+                else:
+                    cur = f"{cur} {part}".strip() if cur else part
+            if cur:
+                segments.append(cur)
+    return segments
+
+
+def synth_segment(eng, text, ref_wav, args):
+    wav = eng.generate(
+        text=text,
+        language_id=args.language,
+        audio_prompt_path=ref_wav,
+        exaggeration=args.exaggeration,
+        cfg_weight=args.cfg_weight,
+        temperature=args.temperature,
+        repetition_penalty=1.2,
+        min_p=0.05,
+        top_p=1.0,
+    )
+    if isinstance(wav, tuple):
+        wav = wav[0]
+    return trim_silence_with_vad(wav.squeeze().cpu().numpy(), eng.sr)
 
 
 def load_merged_engine():
@@ -90,22 +150,23 @@ def main():
     ref_wav = os.path.join(cfg.wav_dir, refs[0])
 
     try:
-        wav = eng.generate(
-            text=args.text,
-            language_id=args.language,
-            audio_prompt_path=ref_wav,
-            exaggeration=args.exaggeration,
-            cfg_weight=args.cfg_weight,
-            temperature=args.temperature,
-            repetition_penalty=1.2,
-            min_p=0.05,
-            top_p=1.0,
-        )
-        if isinstance(wav, tuple):
-            wav = wav[0]
-        trimmed = trim_silence_with_vad(wav.squeeze().cpu().numpy(), eng.sr)
+        segments = split_text(args.text)
+        if not segments:
+            print("ERROR: no text to synthesize")
+            return 1
+
+        pause = np.zeros(int(eng.sr * 0.25), dtype=np.float32)
+        parts = []
+        for i, seg in enumerate(segments, 1):
+            print(f"[{i}/{len(segments)}] synthesizing: {seg[:60]}{'...' if len(seg) > 60 else ''}")
+            parts.append(synth_segment(eng, seg, ref_wav, args))
+        audio = parts[0]
+        for part in parts[1:]:
+            audio = np.concatenate([audio, pause, part])
+        audio = trim_silence_with_vad(audio, eng.sr)
+
         os.makedirs(os.path.dirname(os.path.abspath(args.output)) or ".", exist_ok=True)
-        sf.write(args.output, trimmed, eng.sr)
+        sf.write(args.output, audio, eng.sr)
     except Exception as e:
         print(f"ERROR during generation: {e}")
         return 1
@@ -115,7 +176,8 @@ def main():
     print(f"  exaggeration: {args.exaggeration}")
     print(f"  cfg_weight  : {args.cfg_weight}")
     print(f"  temperature : {args.temperature}")
-    print(f"  duration    : {len(trimmed) / eng.sr:.2f}s")
+    print(f"  segments    : {len(segments)}")
+    print(f"  duration    : {len(audio) / eng.sr:.2f}s")
     return 0
 
 
